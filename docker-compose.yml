@@ -5,8 +5,9 @@ networks:
     driver: bridge
 
 services:
+  # MySQL Service
   mysql:
-    image: ghcr.io/konnetor/mysql:8.0  # GHCR image
+    image: mysql:8.0
     container_name: mysql
     restart: always
     environment:
@@ -17,31 +18,33 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "3306:3306"  # Ensure proper mapping syntax
     networks:
       - backend_network
 
+  # PHPMyAdmin Service
   phpmyadmin:
-    image: ghcr.io/konnetor/phpmyadmin:5.2  # GHCR image
+    image: phpmyadmin/phpmyadmin
     container_name: phpmyadmin
     restart: always
     environment:
       PMA_HOST: mysql
       MYSQL_ROOT_PASSWORD: root
     ports:
-      - "8080:80"
+      - "8080:80"  # Ensure proper mapping syntax
     depends_on:
       - mysql
     networks:
       - backend_network
 
+  # RabbitMQ Service
   rabbitmq:
-    image: ghcr.io/konnetor/rabbitmq:management  # GHCR image
+    image: rabbitmq:management
     container_name: rabbitmq
     restart: always
     ports:
-      - "5672:5672"
-      - "15762:15672"
+      - "5672:5672"  # RabbitMQ server port
+      - "15762:15672"  # RabbitMQ management console
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: pathum
@@ -54,7 +57,7 @@ services:
       - backend_network
 
   redis:
-    image: ghcr.io/konnetor/redis:6.2  # GHCR image
+    image: redis:6.2
     container_name: redis
     restart: always
     ports:
@@ -67,8 +70,12 @@ services:
     networks:
       - backend_network
 
+
+  # Backend Service
   backend:
-    image: ghcr.io/konnetor/backend:1.0  # GHCR image
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: backend
     restart: always
     ports:
@@ -89,11 +96,15 @@ services:
       REDIS_PORT: 6379
     volumes:
       - backend_logs:/app/logs
+      - ./backend:/app
     networks:
       - backend_network
 
+  # Next.js Application Service
   nextjs:
-    image: ghcr.io/konnetor/nextjs:1.0  # GHCR image
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: nextjs
     restart: always
     ports:
@@ -105,8 +116,9 @@ services:
     networks:
       - backend_network
 
+  # Nginx Web Server
   nginx:
-    image: ghcr.io/konnetor/nginx:alpine  # GHCR image
+    image: nginx:alpine
     container_name: nginx
     restart: always
     volumes:
