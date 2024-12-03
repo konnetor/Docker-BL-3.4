@@ -1,0 +1,124 @@
+version: '3.9'
+
+networks:
+  backend_network:
+    driver: bridge
+
+services:
+  mysql:
+    image: ghcr.io/konnetor/mysql:8.0  # GHCR image
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: back_link
+      MYSQL_USER: user
+      MYSQL_PASSWORD: root
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - backend_network
+
+  phpmyadmin:
+    image: ghcr.io/konnetor/phpmyadmin:5.2  # GHCR image
+    container_name: phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: mysql
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - backend_network
+
+  rabbitmq:
+    image: ghcr.io/konnetor/rabbitmq:management  # GHCR image
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15762:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: pathum
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend_network
+
+  redis:
+    image: ghcr.io/konnetor/redis:6.2  # GHCR image
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend_network
+
+  backend:
+    image: ghcr.io/konnetor/backend:1.0  # GHCR image
+    container_name: backend
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+      - rabbitmq
+      - redis
+    environment:
+      DATABASE_HOST: mysql
+      DATABASE_USER: user
+      DATABASE_PASSWORD: root
+      DATABASE_NAME: back_link
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: pathum
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - backend_logs:/app/logs
+    networks:
+      - backend_network
+
+  nextjs:
+    image: ghcr.io/konnetor/nextjs:1.0  # GHCR image
+    container_name: nextjs
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:5000
+    networks:
+      - backend_network
+
+  nginx:
+    image: ghcr.io/konnetor/nginx:alpine  # GHCR image
+    container_name: nginx
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - nextjs
+    networks:
+      - backend_network
+
+volumes:
+  mysql_data:
+  backend_logs:
+  redis_data:
